@@ -4,6 +4,51 @@ import { MetricState, AnalysisTemplate } from '../types';
 import { METRIC_CATALOG } from '../constants';
 import FocusCard from './FocusCard';
 
+type InsightGenerator = (metrics: Record<string, MetricState>) => { icon: string; text: string; color: string }[];
+
+const GROUP_INSIGHTS: Record<string, InsightGenerator> = {
+  diabetes_mgmt: (m) => {
+    const glucose = m['blood_glucose'];
+    const meds = m['medications'];
+    const weight = m['weight'];
+    return [
+      { icon: '⚠️', text: `Your blood glucose is at ${glucose?.lastValue} ${glucose?.unit} — that's ${glucose?.lastValue > glucose?.avgValue ? 'above' : 'near'} your usual ~${Math.round(glucose?.avgValue || 0)}. Let's see what else is happening.`, color: 'border-rose-200 bg-rose-50' },
+      { icon: '💊', text: `Medication adherence is at ${meds?.lastValue}${meds?.unit}. ${(meds?.lastValue || 0) < 90 ? 'A missed dose could be contributing to that glucose spike.' : 'Adherence looks steady, so the spike may be diet-related.'}`, color: 'border-amber-200 bg-amber-50' },
+      { icon: '📊', text: `Weight is ${weight?.lastValue} ${weight?.unit} (avg ~${Math.round(weight?.avgValue || 0)}). ${(weight?.lastValue || 0) > (weight?.avgValue || 0) ? 'Weight trending up alongside glucose — worth reviewing calorie intake with your doctor.' : 'Weight is stable, so this glucose reading is likely a one-off.'}`, color: 'border-emerald-200 bg-emerald-50' },
+    ];
+  },
+  marathon_prep: (m) => {
+    const vo2 = m['vo2_max'];
+    const rhr = m['resting_hr'];
+    const sleep = m['sleep_quality'];
+    return [
+      { icon: '🫁', text: `VO2 Max is at ${vo2?.lastValue} ${vo2?.unit}. ${(vo2?.lastValue || 0) >= (vo2?.avgValue || 0) ? 'Trending steady or up — your aerobic base is building.' : 'Dipped below your average. Could be fatigue or under-recovery.'}`, color: 'border-blue-200 bg-blue-50' },
+      { icon: '❤️', text: `Resting HR is ${rhr?.lastValue} bpm (avg ~${Math.round(rhr?.avgValue || 0)}). ${(rhr?.lastValue || 0) > (rhr?.avgValue || 0) * 1.1 ? 'Elevated — your body may not be recovering between sessions.' : 'Looks normal. Recovery is on track.'}`, color: 'border-rose-200 bg-rose-50' },
+      { icon: '😴', text: `Sleep quality at ${sleep?.lastValue}${sleep?.unit}. ${(sleep?.lastValue || 0) < 70 ? 'Low sleep quality will hurt recovery and VO2 gains. Prioritize rest before your next hard session.' : 'Good sleep supports the training load. Keep it up.'}`, color: 'border-indigo-200 bg-indigo-50' },
+    ];
+  },
+  stress_recovery: (m) => {
+    const hrv = m['hrv'];
+    const rem = m['rem_sleep'];
+    const rhr = m['resting_hr'];
+    return [
+      { icon: '📉', text: `HRV is ${hrv?.lastValue} ${hrv?.unit} (avg ~${Math.round(hrv?.avgValue || 0)}). ${(hrv?.lastValue || 0) < (hrv?.avgValue || 0) * 0.85 ? 'Significantly below average — your nervous system is under strain.' : 'Within normal range. Stress levels appear manageable.'}`, color: 'border-violet-200 bg-violet-50' },
+      { icon: '🧠', text: `REM sleep was ${rem?.lastValue} ${rem?.unit} last night. ${(rem?.lastValue || 0) < 60 ? 'Low REM means less mental recovery. Combined with low HRV, this points to accumulated stress.' : 'Healthy REM duration supports cognitive recovery.'}`, color: 'border-purple-200 bg-purple-50' },
+      { icon: '💓', text: `Resting HR at ${rhr?.lastValue} bpm. ${(rhr?.lastValue || 0) > (rhr?.avgValue || 0) * 1.05 ? 'Slightly elevated alongside low HRV — classic overtraining or high-stress pattern. Consider a rest day.' : 'Stable. No compounding signals detected.'}`, color: 'border-pink-200 bg-pink-50' },
+    ];
+  },
+  heart_bp: (m) => {
+    const bp = m['blood_pressure'];
+    const exercise = m['exercise_mins'];
+    const water = m['water'];
+    return [
+      { icon: '🩺', text: `Blood pressure is reading ${bp?.lastValue} ${bp?.unit} (usual ~${Math.round(bp?.avgValue || 0)}). ${(bp?.lastValue || 0) > 130 ? 'Elevated over the last few days. Let\'s check what else changed.' : 'Within a healthy range.'}`, color: 'border-red-200 bg-red-50' },
+      { icon: '🏃', text: `Exercise: ${exercise?.lastValue} ${exercise?.unit} today. ${(exercise?.lastValue || 0) < (exercise?.avgValue || 0) * 0.7 ? 'Below your usual level. Reduced activity can contribute to higher BP readings.' : 'Activity looks consistent. BP may be influenced by other factors.'}`, color: 'border-green-200 bg-green-50' },
+      { icon: '💧', text: `Water intake is ${water?.lastValue} ${water?.unit} (avg ~${Math.round(water?.avgValue || 0)}). ${(water?.lastValue || 0) < (water?.avgValue || 0) * 0.8 ? 'Dehydration can raise blood pressure. Combined with lower exercise, this is a pattern to flag for your doctor.' : 'Hydration is on track.'}`, color: 'border-cyan-200 bg-cyan-50' },
+    ];
+  },
+};
+
 interface AnalysisHubProps {
   isSearching: boolean;
   allMetrics: Record<string, MetricState>;
@@ -63,6 +108,8 @@ const AnalysisHub: React.FC<AnalysisHubProps> = ({
   onSuggestCluster
 }) => {
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+  const [visibleInsightCount, setVisibleInsightCount] = useState(0);
+  const [insightsDone, setInsightsDone] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
   const [buildMode, setBuildMode] = useState<'ai' | 'manual'>('ai');
   
@@ -83,6 +130,31 @@ const AnalysisHub: React.FC<AnalysisHubProps> = ({
   }, [focusedMetricId]);
 
   const activeTemplate = allTemplates.find(t => t.id === activeTemplateId);
+
+  const activeInsights = useMemo(() => {
+    if (!activeTemplateId || !GROUP_INSIGHTS[activeTemplateId]) return [];
+    return GROUP_INSIGHTS[activeTemplateId](allMetrics);
+  }, [activeTemplateId, allMetrics]);
+
+  useEffect(() => {
+    if (!activeTemplateId || activeInsights.length === 0) {
+      setVisibleInsightCount(0);
+      setInsightsDone(false);
+      return;
+    }
+    setVisibleInsightCount(0);
+    setInsightsDone(false);
+    let count = 0;
+    const interval = setInterval(() => {
+      count++;
+      setVisibleInsightCount(count);
+      if (count >= activeInsights.length) {
+        clearInterval(interval);
+        setTimeout(() => setInsightsDone(true), 600);
+      }
+    }, 1200);
+    return () => clearInterval(interval);
+  }, [activeTemplateId]);
 
   const handleAISuggest = async () => {
     if (!builderGoal.trim()) return;
@@ -192,30 +264,60 @@ const AnalysisHub: React.FC<AnalysisHubProps> = ({
               </h2>
               <button onClick={() => setActiveTemplateId(null)} className="text-gray-300 p-1"><svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
-            
-            <div className="mb-8">
-              <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 leading-none">What to look for</p>
-              <p className="text-sm text-gray-700 font-medium leading-relaxed bg-blue-50/50 p-5 rounded-[24px] border border-blue-100/50">
-                {activeTemplate.narrative}
-              </p>
-            </div>
 
-            <div className="space-y-6">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 leading-none">Current Values</p>
-              {activeTemplate.metricIds.map(mid => {
-                const m = allMetrics[mid];
-                if (!m) return null;
-                return (
-                  <FocusCard 
-                    key={mid}
-                    metric={m}
-                    onRemove={() => {}}
-                    onLogClick={() => {}}
-                    onSaveObservation={onSaveObservation}
-                  />
-                );
-              })}
-            </div>
+            {activeInsights.length > 0 && (
+              <div className="mb-8 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                  <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">Live Analysis</p>
+                </div>
+                {activeInsights.slice(0, visibleInsightCount).map((insight, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-start gap-3 p-4 rounded-[20px] border ${insight.color} animate-in slide-in-from-bottom-2 fade-in duration-500`}
+                  >
+                    <span className="text-lg shrink-0 mt-0.5">{insight.icon}</span>
+                    <p className="text-xs font-semibold text-gray-700 leading-relaxed">{insight.text}</p>
+                  </div>
+                ))}
+                {!insightsDone && visibleInsightCount < activeInsights.length && (
+                  <div className="flex items-center gap-2 px-4 py-3">
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" />
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0.2s]" />
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest ml-1">Analyzing connections...</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeInsights.length === 0 && (
+              <div className="mb-8">
+                <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2 leading-none">What to look for</p>
+                <p className="text-sm text-gray-700 font-medium leading-relaxed bg-blue-50/50 p-5 rounded-[24px] border border-blue-100/50">
+                  {activeTemplate.narrative}
+                </p>
+              </div>
+            )}
+
+            {(insightsDone || activeInsights.length === 0) && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 leading-none">Current Values</p>
+                {activeTemplate.metricIds.map(mid => {
+                  const m = allMetrics[mid];
+                  if (!m) return null;
+                  return (
+                    <FocusCard
+                      key={mid}
+                      metric={m}
+                      onRemove={() => {}}
+                      onLogClick={() => {}}
+                      onSaveObservation={onSaveObservation}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
       )}
