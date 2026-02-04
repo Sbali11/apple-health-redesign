@@ -49,6 +49,7 @@ const App: React.FC = () => {
   });
 
   const [isSearching, setIsSearching] = useState(false);
+  const [isDemoPlaying, setIsDemoPlaying] = useState(false);
 
   const [metrics] = useState<Record<string, MetricState>>(() => {
     const data: Record<string, MetricState> = {};
@@ -244,7 +245,56 @@ const App: React.FC = () => {
   }, [appState.doctorVisitType, appState.savedObservations, metrics]);
 
   const handleNewChat = () => {
+    setIsDemoPlaying(false);
     setAppState(prev => ({ ...prev, chatHistory: [], investigationState: 'none', focusedAnomalyMetricId: null, investigationSummary: null }));
+  };
+
+  const playDemoChat = (metricId: string) => {
+    const m = metrics[metricId];
+    if (!m) return;
+
+    const demoScript: { role: 'model' | 'user'; text: string }[] = [
+      { role: 'model', text: `Your blood glucose is at ${m.lastValue} ${m.unit} today — that's noticeably higher than your usual average of ~${Math.round(m.avgValue)}. I've noted this down. Let me ask a few questions to understand what might have caused this. Did anything change recently — a heavy meal, missed medication, or a stressful day?` },
+      { role: 'user', text: `I missed my medication yesterday and had a late dinner.` },
+      { role: 'model', text: `Got it, I'll note that down. Missed medication and late meals are both common causes of glucose spikes. How has your sleep been the last couple of nights?` },
+      { role: 'user', text: `Not great, maybe 5 hours.` },
+      { role: 'model', text: `That tracks — poor sleep can reduce insulin sensitivity, which makes glucose harder to regulate. I'm seeing a pattern: missed dose + late meal + short sleep. I'll keep tracking your glucose over the next few days. If it stays elevated, we can flag this for your doctor.` },
+    ];
+
+    setIsDemoPlaying(true);
+    setAppState(prev => ({
+      ...prev,
+      focusedAnomalyMetricId: metricId,
+      investigationState: 'active',
+      isChatOpen: true,
+      chatHistory: []
+    }));
+
+    let i = 0;
+    const playNext = () => {
+      if (i >= demoScript.length) {
+        setIsDemoPlaying(false);
+        setIsSearching(false);
+        return;
+      }
+      const msg = demoScript[i];
+      if (msg.role === 'model') {
+        setIsSearching(true);
+        setTimeout(() => {
+          setAppState(prev => ({ ...prev, chatHistory: [...prev.chatHistory, msg] }));
+          setIsSearching(false);
+          i++;
+          setTimeout(playNext, 1200);
+        }, 1500);
+      } else {
+        setTimeout(() => {
+          setAppState(prev => ({ ...prev, chatHistory: [...prev.chatHistory, msg] }));
+          i++;
+          setTimeout(playNext, 800);
+        }, 1000);
+      }
+    };
+    setTimeout(playNext, 500);
   };
 
   const toggleFocus = useCallback((id: string) => {
@@ -262,7 +312,13 @@ const App: React.FC = () => {
       const last = m.data[m.data.length - 1]?.value;
       const avg = m.avgValue;
       if (last > avg * 1.3 || last < avg * 0.7) {
-        generatedAlerts.push({ id: alertId, type: 'anomaly', title: m.name, message: `Looks like there's a change from your usual pattern.`, metricId: m.id });
+        const direction = last > avg ? 'higher' : 'lower';
+        const message = m.id === 'blood_glucose'
+          ? `Your blood glucose is ${last} ${m.unit} — higher than your usual average of ~${Math.round(avg)}. This could be worth looking into.`
+          : m.id === 'blood_pressure'
+          ? `Your blood pressure has been elevated the last few days, reading ${last} ${m.unit} vs your usual ~${Math.round(avg)}.`
+          : `Your ${m.name} is ${direction} than expected — ${last} ${m.unit} vs your usual ~${Math.round(avg)}.`;
+        generatedAlerts.push({ id: alertId, type: 'anomaly', title: m.name, message, metricId: m.id });
       }
     });
     return generatedAlerts;
@@ -298,13 +354,17 @@ const App: React.FC = () => {
               onDismiss={(id) => setAppState(prev => ({ ...prev, dismissedAlertIds: [...prev.dismissedAlertIds, id] }))} 
               onAction={(alert) => {
                 if (alert.type === 'anomaly' && alert.metricId) {
-                  setAppState(prev => ({
-                    ...prev,
-                    focusedAnomalyMetricId: alert.metricId,
-                    investigationState: 'active',
-                    isChatOpen: true,
-                    chatHistory: [{ role: 'model', text: `I noticed an unusual pattern in your ${metrics[alert.metricId].name}. Could you tell me if anything changed recently? (e.g. stress, diet, or sleep)` }]
-                  }));
+                  if (alert.metricId === 'blood_glucose') {
+                    playDemoChat(alert.metricId);
+                  } else {
+                    setAppState(prev => ({
+                      ...prev,
+                      focusedAnomalyMetricId: alert.metricId!,
+                      investigationState: 'active',
+                      isChatOpen: true,
+                      chatHistory: [{ role: 'model', text: `I noticed your ${metrics[alert.metricId!].name} is at ${metrics[alert.metricId!].lastValue} ${metrics[alert.metricId!].unit} — that's ${metrics[alert.metricId!].lastValue > metrics[alert.metricId!].avgValue ? 'higher' : 'lower'} than your usual ~${Math.round(metrics[alert.metricId!].avgValue)}. Could you tell me if anything changed recently?` }]
+                    }));
+                  }
                 }
               }} 
             />
@@ -379,7 +439,7 @@ const App: React.FC = () => {
       </main>
 
       <button onClick={() => setAppState(prev => ({ ...prev, isChatOpen: true }))} className="fixed bottom-28 right-6 w-14 h-14 bg-indigo-600 rounded-full shadow-2xl flex items-center justify-center text-white z-40 border-4 border-white active:scale-90 transition-all shadow-indigo-200"><svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg></button>
-      <GlobalChat isOpen={appState.isChatOpen} onClose={() => setAppState(prev => ({ ...prev, isChatOpen: false }))} onNewChat={handleNewChat} history={appState.chatHistory} onSend={handleChat} isSearching={isSearching} investigationState={appState.investigationState} investigationSummary={appState.investigationSummary} focusedMetric={appState.focusedAnomalyMetricId ? metrics[appState.focusedAnomalyMetricId] : undefined} onSummarize={handleSummarizeInvestigation} onFinish={handleFinishInvestigation} />
+      <GlobalChat isOpen={appState.isChatOpen} onClose={() => { setIsDemoPlaying(false); setAppState(prev => ({ ...prev, isChatOpen: false })); }} onNewChat={handleNewChat} history={appState.chatHistory} onSend={handleChat} isSearching={isSearching} investigationState={appState.investigationState} investigationSummary={appState.investigationSummary} focusedMetric={appState.focusedAnomalyMetricId ? metrics[appState.focusedAnomalyMetricId] : undefined} onSummarize={handleSummarizeInvestigation} onFinish={handleFinishInvestigation} isDemoPlaying={isDemoPlaying} />
 
       {appState.view === 'library' && (
         <Library onClose={() => setAppState(prev => ({ ...prev, view: 'home' }))} onToggleFocus={toggleFocus} focusIds={appState.focusMetricIds} />

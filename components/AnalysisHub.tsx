@@ -16,41 +16,41 @@ interface AnalysisHubProps {
 }
 
 const SYSTEM_TEMPLATES: AnalysisTemplate[] = [
-  { 
-    id: 'heart_health', 
-    name: 'Heart Check', 
-    icon: '❤️', 
-    description: 'Vitality', 
-    metricIds: ['resting_hr', 'hrv', 'blood_pressure', 'vo2_max'], 
-    narrative: 'This group tracks your heart rhythm and how well your body handles stress. Keep an eye on your Resting HR—it should stay consistent. If your HRV (Heart Variability) drops significantly, it might be a sign that you need more rest or are dealing with high stress.', 
-    color: 'from-rose-500 to-pink-600' 
+  {
+    id: 'diabetes_mgmt',
+    name: 'Diabetes Management',
+    icon: '💉',
+    description: 'Blood Sugar Control',
+    metricIds: ['blood_glucose', 'medications', 'weight', 'calories', 'water'],
+    narrative: 'Watch for glucose spikes after meals — if your weight and glucose are both trending up, review your calorie intake and medication timing with your doctor. Consistent hydration helps stabilize blood sugar throughout the day.',
+    color: 'from-rose-500 to-red-700'
   },
-  { 
-    id: 'weight_mgmt', 
-    name: 'Body Balance', 
-    icon: '⚖️', 
-    description: 'Physical', 
-    metricIds: ['weight', 'calories', 'water', 'bmi'], 
-    narrative: 'Use this to see the relationship between what you eat and your body weight. Look for steady trends rather than daily jumps. Drinking enough water and keeping calories consistent helps keep your energy levels even throughout the week.', 
-    color: 'from-emerald-500 to-teal-600' 
+  {
+    id: 'marathon_prep',
+    name: 'Marathon Prep',
+    icon: '🏃‍♂️',
+    description: 'Endurance Training',
+    metricIds: ['vo2_max', 'resting_hr', 'active_energy', 'sleep_quality', 'calories'],
+    narrative: 'Your VO2 Max trend shows whether your endurance is improving. If your resting HR is climbing week over week while training load stays the same, you may be under-recovering. Pair this with sleep quality to know when to push and when to rest.',
+    color: 'from-orange-500 to-amber-600'
   },
-  { 
-    id: 'sleep_recov', 
-    name: 'Sleep & Rest', 
-    icon: '🌙', 
-    description: 'Recovery', 
-    metricIds: ['sleep_duration', 'sleep_quality', 'rem_sleep', 'hrv'], 
-    narrative: 'This tracks how your body recharges. Look at your Sleep Quality score—if it’s low even when you sleep 8 hours, you might be having restless nights. Consistent REM sleep is key for feeling mentally sharp the next day.', 
-    color: 'from-indigo-500 to-blue-600' 
+  {
+    id: 'stress_recovery',
+    name: 'Stress & Recovery',
+    icon: '🧘',
+    description: 'Mental Wellbeing',
+    metricIds: ['hrv', 'sleep_quality', 'rem_sleep', 'resting_hr'],
+    narrative: 'A sustained HRV drop paired with poor REM sleep usually means your body is not recovering. If your resting HR is also elevated, consider reducing training intensity, improving sleep hygiene, or managing stressors before they compound.',
+    color: 'from-indigo-500 to-violet-700'
   },
-  { 
-    id: 'metabolic', 
-    name: 'Fuel & Energy', 
-    icon: '⚡', 
-    description: 'Metabolism', 
-    metricIds: ['blood_glucose', 'calories', 'medications', 'active_energy'], 
-    narrative: 'This monitors how your body uses fuel. Look for stability in your sugar levels. Large spikes often happen after sugary meals or when you haven’t been active. Stable readings usually lead to better mood and more consistent energy.', 
-    color: 'from-orange-500 to-amber-600' 
+  {
+    id: 'heart_bp',
+    name: 'Blood Pressure Watch',
+    icon: '🩺',
+    description: 'Hypertension Tracking',
+    metricIds: ['blood_pressure', 'resting_hr', 'weight', 'exercise_mins', 'water'],
+    narrative: 'Track how your blood pressure responds to exercise, hydration, and weight changes over time. If your BP is rising while exercise and water intake are dropping, that is a pattern worth discussing with your doctor before your next visit.',
+    color: 'from-emerald-500 to-teal-700'
   }
 ];
 

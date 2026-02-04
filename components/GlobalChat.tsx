@@ -17,11 +17,13 @@ interface GlobalChatProps {
   focusedMetric?: MetricState;
   onSummarize: () => void;
   onFinish: (decision: 'track' | 'doctor') => void;
+  isDemoPlaying?: boolean;
 }
 
-const GlobalChat: React.FC<GlobalChatProps> = ({ 
-  isOpen, onClose, onNewChat, history, onSend, isSearching, 
-  investigationState, investigationSummary, focusedMetric, onSummarize, onFinish 
+const GlobalChat: React.FC<GlobalChatProps> = ({
+  isOpen, onClose, onNewChat, history, onSend, isSearching,
+  investigationState, investigationSummary, focusedMetric, onSummarize, onFinish,
+  isDemoPlaying = false
 }) => {
   const [input, setInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -63,6 +65,14 @@ const GlobalChat: React.FC<GlobalChatProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Demo Banner */}
+      {isDemoPlaying && (
+        <div className="px-6 py-3 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 flex items-center gap-3 shrink-0 animate-in slide-in-from-top duration-300">
+          <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+          <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Demo — Example investigation flow</p>
+        </div>
+      )}
 
       {/* Investigation Context Panel */}
       {investigationState === 'active' && focusedMetric && (
@@ -114,29 +124,39 @@ const GlobalChat: React.FC<GlobalChatProps> = ({
       <div className="bg-white p-6 border-t shadow-2xl rounded-t-[40px] border-gray-100 shrink-0">
          {investigationState === 'active' ? (
            <>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-5 -mx-1">
-                {QUICK_EVIDENCE.map(evidence => (
-                  <button 
-                    key={evidence}
-                    onClick={() => onSend(`I noticed ${evidence} recently.`)}
-                    className="px-3 py-2 bg-gray-50 border border-transparent text-gray-700 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap active:scale-95 transition-all hover:bg-white hover:border-indigo-100 shadow-sm"
-                  >
-                    {evidence}
-                  </button>
-                ))}
-              </div>
-              <form onSubmit={(e) => { e.preventDefault(); if (input) { onSend(input); setInput(''); }}} className="relative mb-3">
-                <input 
-                  type="text" value={input} onChange={(e) => setInput(e.target.value)}
-                  placeholder="Share details for the report..."
-                  className="w-full bg-gray-100 border-2 border-transparent focus:border-indigo-100 rounded-2xl py-4 pl-5 pr-14 text-sm font-bold outline-none shadow-inner"
-                />
-                <button type="submit" className="absolute right-2 top-2 bg-indigo-600 text-white p-2.5 rounded-xl"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9-2-9-18-9 18 9 2zm0 0v-8" /></svg></button>
-              </form>
-              {history.length >= 2 && (
-                <button onClick={onSummarize} disabled={isSearching} className="w-full bg-indigo-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all">
-                  Analyze & Finalize Findings
-                </button>
+              {!isDemoPlaying && (
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-5 -mx-1">
+                  {QUICK_EVIDENCE.map(evidence => (
+                    <button
+                      key={evidence}
+                      onClick={() => onSend(`I noticed ${evidence} recently.`)}
+                      className="px-3 py-2 bg-gray-50 border border-transparent text-gray-700 rounded-xl text-[9px] font-black uppercase tracking-widest whitespace-nowrap active:scale-95 transition-all hover:bg-white hover:border-indigo-100 shadow-sm"
+                    >
+                      {evidence}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {isDemoPlaying ? (
+                <div className="text-center py-3">
+                  <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Conversation playing...</p>
+                </div>
+              ) : (
+                <>
+                  <form onSubmit={(e) => { e.preventDefault(); if (input) { onSend(input); setInput(''); }}} className="relative mb-3">
+                    <input
+                      type="text" value={input} onChange={(e) => setInput(e.target.value)}
+                      placeholder="Share details for the report..."
+                      className="w-full bg-gray-100 border-2 border-transparent focus:border-indigo-100 rounded-2xl py-4 pl-5 pr-14 text-sm font-bold outline-none shadow-inner"
+                    />
+                    <button type="submit" className="absolute right-2 top-2 bg-indigo-600 text-white p-2.5 rounded-xl"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9-2-9-18-9 18 9 2zm0 0v-8" /></svg></button>
+                  </form>
+                  {history.length >= 2 && (
+                    <button onClick={onSummarize} disabled={isSearching} className="w-full bg-indigo-600 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all">
+                      Analyze & Finalize Findings
+                    </button>
+                  )}
+                </>
               )}
            </>
          ) : investigationState === 'concluding' ? (
